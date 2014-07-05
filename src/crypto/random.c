@@ -36,6 +36,10 @@ static void generate_system_random_bytes(size_t n, void *result) {
 #include <sys/types.h>
 #include <unistd.h>
 
+#ifndef O_CLOEXEC
+#define O_CLOEXEC 0
+#endif
+
 static void generate_system_random_bytes(size_t n, void *result) {
   int fd;
   if ((fd = open("/dev/urandom", O_RDONLY | O_NOCTTY | O_CLOEXEC)) < 0) {
@@ -70,6 +74,7 @@ static union hash_state state;
 static volatile int curstate; /* To catch thread safety problems. */
 #endif
 
+/*
 FINALIZER(deinit_random) {
 #if !defined(NDEBUG)
   assert(curstate == 1);
@@ -86,8 +91,23 @@ INITIALIZER(init_random) {
   curstate = 1;
 #endif
 }
+*/
 
 void generate_random_bytes(size_t n, void *result) {
+
+static int initialized = 0;
+
+if (!initialized) {
+  generate_system_random_bytes(32, &state);
+  REGISTER_FINALIZER(deinit_random);
+#if !defined(NDEBUG)
+  assert(curstate == 0);
+  curstate = 1;
+#endif
+
+  initialized = 1;
+}
+
 #if !defined(NDEBUG)
   assert(curstate == 1);
   curstate = 2;
